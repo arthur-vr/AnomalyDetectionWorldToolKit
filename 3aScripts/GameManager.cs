@@ -59,11 +59,26 @@ namespace ArthurProduct.AnomalyDetection
         [SerializeField]
         private Bgm bgm;
 
+        [Header("Ban Settings")]
+        [Tooltip("Point where banned players are teleported")]
+        [SerializeField]
+        private Transform banRespawnPoint;
+
+        [Tooltip("Number of rapid presses before ban")]
+        [SerializeField]
+        public byte maxRapidPresses = 7;
+
+        [Tooltip("Time window for rapid presses in seconds")]
+        [SerializeField]
+        public float rapidPressWindow = 3.0f;
+
         [UdonSynced(UdonSyncMode.None)]
         private sbyte successStack = -1;  // -1: Not started, 0-maxSuccessStack: In progress, maxSuccessStack: Completed
 
         [UdonSynced(UdonSyncMode.None)]
         private sbyte anomalyStageIndex = -1;
+
+        private bool isBanned = false;
 
         private void Start()
         {
@@ -82,6 +97,11 @@ namespace ArthurProduct.AnomalyDetection
         }
         public void StartGame()
         {
+            if (isBanned)
+            {
+                BanBehaviour();
+                return;
+            }
             successStack = 0;
             if (soundEffect != null)
             {
@@ -197,6 +217,11 @@ namespace ArthurProduct.AnomalyDetection
 
         private void UpdateBySyncedVariables()
         {
+            if (isBanned)
+            {
+                BanBehaviour();
+                return;
+            }
             UpdateStage();
             UpdateProgressObjects();
             UpdateBySuccessStack();
@@ -294,6 +319,24 @@ namespace ArthurProduct.AnomalyDetection
             if (soundEffect != null)
             {
                 soundEffect.PlayClearSound();
+            }
+        }
+
+        public void BanPlayer()
+        {
+            isBanned = true;
+            BanBehaviour();
+        }
+
+        private void BanBehaviour()
+        {
+            if (isBanned)
+            {
+                VRCPlayerApi player = Networking.LocalPlayer;
+                if (player != null && player.IsValid())
+                {
+                    player.TeleportTo(banRespawnPoint.position, banRespawnPoint.rotation);
+                }
             }
         }
     }

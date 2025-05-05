@@ -11,6 +11,7 @@ namespace ArthurProduct.AnomalyDetection
         [SerializeField] private GameManager gameManager;
         private float cooldownTime = 1.0f;
         private float lastPressTime = 0f;
+        private int rapidPressCount = 0;
 
         public override void Interact()
         {
@@ -18,6 +19,23 @@ namespace ArthurProduct.AnomalyDetection
             if (currentTime - lastPressTime >= cooldownTime)
             {
                 if (gameManager == null) return;
+
+                // Check if this press is within the rapid press window
+                if (currentTime - lastPressTime <= gameManager.rapidPressWindow)
+                {
+                    rapidPressCount++;
+                }
+                else
+                {
+                    rapidPressCount = 1; // Reset count if outside window
+                }
+
+                if (rapidPressCount >= gameManager.maxRapidPresses)
+                {
+                    gameManager.BanPlayer();
+                    return;
+                }
+
                 gameManager.CheckAnswer(true);
                 lastPressTime = currentTime;
             }
