@@ -1,6 +1,8 @@
 ﻿using UnityEngine;
 using VRC.SDKBase;
 using UdonSharp;
+using VRC.Udon.Common;
+using VRC.Udon.Common.Interfaces;
 using System.Collections.Generic;
 
 namespace ArthurProduct.AnomalyDetection
@@ -60,17 +62,16 @@ namespace ArthurProduct.AnomalyDetection
         private Bgm bgm;
 
         [Header("Ban Settings")]
-        [Tooltip("Point where banned players are teleported")]
-        [SerializeField]
-        private Transform banRespawnPoint;
 
         [Tooltip("Number of rapid presses before ban")]
         [SerializeField]
-        public byte maxRapidPresses = 7;
+        public byte maxRapidPresses = 5;
 
         [Tooltip("Time window for rapid presses in seconds")]
         [SerializeField]
-        public float rapidPressWindow = 3.0f;
+        public byte rapidPressWindow = 3;
+        [Tooltip("Flag to check if player is banned")]
+        public bool isBanned = false;
 
         [UdonSynced(UdonSyncMode.None)]
         private sbyte successStack = -1;  // -1: Not started, 0-maxSuccessStack: In progress, maxSuccessStack: Completed
@@ -78,7 +79,10 @@ namespace ArthurProduct.AnomalyDetection
         [UdonSynced(UdonSyncMode.None)]
         private sbyte anomalyStageIndex = -1;
 
-        private bool isBanned = false;
+        [Header("Public but just shared for other scripts")]
+        [HideInInspector]
+        [Tooltip("Time of last press")]
+        public float lastPressTime = 0;
 
         private void Start()
         {
@@ -97,15 +101,10 @@ namespace ArthurProduct.AnomalyDetection
         }
         public void StartGame()
         {
-            if (isBanned)
-            {
-                BanBehaviour();
-                return;
-            }
             successStack = 0;
             if (soundEffect != null)
             {
-                SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.All, nameof(PlayStartSound));
+                SendCustomNetworkEvent(NetworkEventTarget.All, nameof(PlayStartSound));
             }
             RequestSerializationForSuccessStack();
         }
@@ -217,11 +216,6 @@ namespace ArthurProduct.AnomalyDetection
 
         private void UpdateBySyncedVariables()
         {
-            if (isBanned)
-            {
-                BanBehaviour();
-                return;
-            }
             UpdateStage();
             UpdateProgressObjects();
             UpdateBySuccessStack();
@@ -267,13 +261,13 @@ namespace ArthurProduct.AnomalyDetection
                 successStack++;
                 if (successStack < maxSuccessStack && successStack >= 0)
                 {
-                    SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.All, nameof(PlayCorrectSound));
+                    SendCustomNetworkEvent(NetworkEventTarget.All, nameof(PlayCorrectSound));
                 }
             }
             else
             {
                 successStack = 0;
-                SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.All, nameof(PlayWrongSound));
+                SendCustomNetworkEvent(NetworkEventTarget.All, nameof(PlayWrongSound));
             }
             UpdateAnomalyStageIndex();
             RequestSerializationForSuccessStack();
@@ -325,19 +319,7 @@ namespace ArthurProduct.AnomalyDetection
         public void BanPlayer()
         {
             isBanned = true;
-            BanBehaviour();
         }
 
-        private void BanBehaviour()
-        {
-            if (isBanned)
-            {
-                VRCPlayerApi player = Networking.LocalPlayer;
-                if (player != null && player.IsValid())
-                {
-                    player.TeleportTo(banRespawnPoint.position, banRespawnPoint.rotation);
-                }
-            }
-        }
     }
 }

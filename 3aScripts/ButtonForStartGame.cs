@@ -11,20 +11,22 @@ namespace ArthurProduct.AnomalyDetection
         [SerializeField]
         private GameManager gameManager;
 
-        private float cooldownTime = 1.0f;
-
-        private float lastPressTime = 0f;
+        private const byte COOLDOWN_TIME = 1;
 
         public override void Interact()
         {
+            if (gameManager.isBanned) {
+                gameObject.SetActive(false);
+                return;
+            }
             float currentTime = Time.time;
-            if (currentTime - lastPressTime >= cooldownTime)
+            if (currentTime - gameManager.lastPressTime >= COOLDOWN_TIME)
             {
                 if (gameManager != null)
                 {
                     gameManager.StartGame();
                 }
-                lastPressTime = currentTime;
+                gameManager.lastPressTime = currentTime;
             }
         }
     }

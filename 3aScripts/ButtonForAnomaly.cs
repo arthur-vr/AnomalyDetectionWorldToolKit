@@ -9,19 +9,22 @@ namespace ArthurProduct.AnomalyDetection
     public class ButtonForAnomaly : UdonSharpBehaviour
     {
         [SerializeField] private GameManager gameManager;
-        private float cooldownTime = 1.0f;
-        private float lastPressTime = 0f;
-        private int rapidPressCount = 0;
+        private const byte COOLDOWN_TIME = 1;
+        private byte rapidPressCount = 0;
 
         public override void Interact()
         {
+            if (gameManager.isBanned) {
+                gameObject.SetActive(false);
+                return;
+            }
             float currentTime = Time.time;
-            if (currentTime - lastPressTime >= cooldownTime)
+            if (currentTime - gameManager.lastPressTime >= COOLDOWN_TIME)
             {
                 if (gameManager == null) return;
 
                 // Check if this press is within the rapid press window
-                if (currentTime - lastPressTime <= gameManager.rapidPressWindow)
+                if (currentTime - gameManager.lastPressTime <= gameManager.rapidPressWindow)
                 {
                     rapidPressCount++;
                 }
@@ -37,7 +40,7 @@ namespace ArthurProduct.AnomalyDetection
                 }
 
                 gameManager.CheckAnswer(true);
-                lastPressTime = currentTime;
+                gameManager.lastPressTime = currentTime;
             }
         }
     }
