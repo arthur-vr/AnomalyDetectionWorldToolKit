@@ -12,6 +12,14 @@ namespace ArthurProduct.AnomalyDetection
         private const byte COOLDOWN_TIME = 1;
         private byte rapidPressCount = 0;
 
+        private void Start()
+        {
+            if (!Utilities.IsValid(gameManager))
+            {
+                Debug.LogError("GameManager is not assigned");
+            }
+        }
+
         public override void Interact()
         {
             if (gameManager.isBanned) {
@@ -21,7 +29,7 @@ namespace ArthurProduct.AnomalyDetection
             float currentTime = Time.time;
             if (currentTime - gameManager.lastPressTime >= COOLDOWN_TIME)
             {
-                if (gameManager == null) return;
+                if (!Utilities.IsValid(gameManager)) return;
                 
                 // Check if this press is within the rapid press window
                 if (currentTime - gameManager.lastPressTime <= gameManager.rapidPressWindow)

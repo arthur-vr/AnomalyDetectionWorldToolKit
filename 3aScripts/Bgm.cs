@@ -26,45 +26,38 @@ namespace ArthurProduct.AnomalyDetection
 
         private void Start()
         {
-            if (audioSource == null)
+            if (!Utilities.IsValid(audioSource))
             {
                 audioSource = GetComponent<AudioSource>();
             }
         }
 
+        private void PlayBgm(AudioClip clip)
+        {
+            if (!Utilities.IsValid(clip) || !Utilities.IsValid(audioSource)) return;
+            audioSource.clip = clip;
+            audioSource.Play();
+        }
+
         public void PlayPreGameBgm()
         {
-            if (preGameBgm != null && audioSource != null)
-            {
-                audioSource.clip = preGameBgm;
-                audioSource.Play();
-            }
+            PlayBgm(preGameBgm);
         }
 
         public void PlayInGameBgm()
         {
-            if (inGameBgm != null && audioSource != null)
-            {
-                audioSource.clip = inGameBgm;
-                audioSource.Play();
-            }
+            PlayBgm(inGameBgm);
         }
 
         public void PlayClearBgm()
         {
-            if (clearBgm != null && audioSource != null)
-            {
-                audioSource.clip = clearBgm;
-                audioSource.Play();
-            }
+            PlayBgm(clearBgm);
         }
 
         public void StopBgm()
         {
-            if (audioSource != null)
-            {
-                audioSource.Stop();
-            }
+            if (!Utilities.IsValid(audioSource)) return;
+            audioSource.Stop();
         }
     }
 }

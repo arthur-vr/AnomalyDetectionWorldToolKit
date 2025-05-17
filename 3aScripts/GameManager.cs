@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using VRC.SDKBase;
 using UdonSharp;
 using VRC.Udon.Common;
@@ -14,37 +14,18 @@ namespace ArthurProduct.AnomalyDetection
         [Tooltip("Initial spawn point when players join")]
         [SerializeField]
         private Transform initialSpawnPoint;
-
-        [Tooltip("Respawn point during gameplay")]
-        [SerializeField]
-        private Transform gameStartPoint;
+        private Transform initialSpawnPointCache;
 
         [Tooltip("Exit point when game is completed")]
         [SerializeField]
         private Transform exitPoint;
 
         [Header("Game Settings")]
-        [Tooltip("Number of successful attempts needed to win")]
-        [SerializeField]
-        private byte maxSuccessStack = 10;
-
-        [Tooltip("Probability of anomaly appearing (0-100)")]
-        [SerializeField]
-        public byte anomalyProbability = 65;
 
         [Header("Stage Settings")]
-        [Tooltip("Base stage objects that will be modified")]
+        [Tooltip("Array of stage objects")]
         [SerializeField]
-        private GameObject baseStage;
-
-        [Tooltip("Anomaly stages that can be randomly selected")]
-        [SerializeField]
-        private GameObject[] anomalyStages;
-
-        [Header("UI Elements")]
-        [Tooltip("Progress objects that will be activated based on success stack")]
-        [SerializeField]
-        private GameObject[] progressObjects;
+        private Stage[] stages;
 
         [Header("Utils")]
         [Tooltip("Utils component for random operations")]
@@ -63,6 +44,10 @@ namespace ArthurProduct.AnomalyDetection
 
         [Header("Ban Settings")]
 
+        [Tooltip("Enable ban")]
+        [SerializeField]
+        private bool isBanEnabled = false;
+
         [Tooltip("Number of rapid presses before ban")]
         [SerializeField]
         public byte maxRapidPresses = 5;
@@ -77,6 +62,9 @@ namespace ArthurProduct.AnomalyDetection
         private sbyte successStack = -1;  // -1: Not started, 0-maxSuccessStack: In progress, maxSuccessStack: Completed
 
         [UdonSynced(UdonSyncMode.None)]
+        private sbyte currentStageIndex = -1;
+
+        [UdonSynced(UdonSyncMode.None)]
         private sbyte anomalyStageIndex = -1;
 
         [Header("Public but just shared for other scripts")]
@@ -88,21 +76,28 @@ namespace ArthurProduct.AnomalyDetection
         {
             ResetGame();
             ValidateVariables();
+            initialSpawnPointCache = initialSpawnPoint;
+        }
+        private void ResetSyncVariables()
+        {
+            successStack = -1;
+            currentStageIndex = -1;
+            anomalyStageIndex = -1;
         }
         public void ResetGame()
         {
             bool isOwner = Networking.IsOwner(gameObject);
             if (isOwner)
             {
-                successStack = -1;
-                anomalyStageIndex = -1;
+                ResetSyncVariables();
                 RequestSerializationForSuccessStack();
             }
         }
-        public void StartGame()
+        public void StartGame(byte stageIndex = 0)
         {
             successStack = 0;
-            if (soundEffect != null)
+            currentStageIndex = (sbyte)stageIndex;
+            if (Utilities.IsValid(soundEffect))
             {
                 SendCustomNetworkEvent(NetworkEventTarget.All, nameof(PlayStartSound));
             }
@@ -111,74 +106,94 @@ namespace ArthurProduct.AnomalyDetection
 
         private void ValidateVariables()
         {
-            ValidateProgressObjects();
-        }
-
-        private void ValidateProgressObjects()
-        {
-            if (progressObjects == null)
+            if (!Utilities.IsValid(soundEffect))
             {
-                Debug.LogError("Progress objects array is null");
-                return;
+                Debug.LogError("SoundEffect is invalid");
             }
-
-            // Ensure all progress objects are initially inactive
-            foreach (GameObject obj in progressObjects)
+            if (!Utilities.IsValid(stages))
             {
-                if (obj != null)
-                {
-                    obj.SetActive(false);
-                }
+                Debug.LogError("Stages is invalid");
             }
-
-            if (progressObjects.Length != maxSuccessStack)
-            {
-                Debug.LogError($"Progress objects count ({progressObjects.Length}) must match maxSuccessStack ({maxSuccessStack})");
-                return;
-            }
-
         }
 
         private void UpdateBySuccessStack()
         {
-            VRCPlayerApi player = Networking.LocalPlayer;
-            if (player == null || !player.IsValid()) return;
 
-            if (successStack >= maxSuccessStack)
+            VRCPlayerApi player = Networking.LocalPlayer;
+            if (!player.IsValid()){
+                Debug.LogError("Player is invalid");
+                return;
+            }
+
+            if(currentStageIndex < 0){
+                Debug.LogError("currentStageIndex is less than 0: " + currentStageIndex);
+                UpdateBgmBySuccessStack();
+                return;
+            }
+
+            Stage currentStage = stages[currentStageIndex];
+
+            if (successStack >= currentStage.maxSuccessStack)
             {
-                successStack = (sbyte)maxSuccessStack;
-                if (soundEffect != null)
+                successStack = (sbyte)currentStage.maxSuccessStack;
+                if (Utilities.IsValid(soundEffect))
                 {
                     soundEffect.PlayClearSound();
                 }
-                // Game completed - teleport to exit
-                if (exitPoint != null)
+                if (Utilities.IsValid(exitPoint))
                 {
                     player.TeleportTo(exitPoint.position, exitPoint.rotation);
                 }
-                if (bgm != null)
+                if (Utilities.IsValid(bgm))
                 {
                     bgm.PlayClearBgm();
                 }
+                if (Utilities.IsValid(currentStage))
+                {
+                    foreach (Stage stage in stages)
+                    {
+                        stage.ToggleClearObjects(false);
+                    }
+                    currentStage.ToggleClearObjects(true);
+                }
+                //reset to restart
+                initialSpawnPoint = initialSpawnPointCache;
             }
             else if (successStack >= 0)
             {
-                if (gameStartPoint != null)
+                if (Utilities.IsValid(stages) && currentStageIndex >= 0 && currentStageIndex < stages.Length)
                 {
-                    player.TeleportTo(gameStartPoint.position, gameStartPoint.rotation);
+                    if (Utilities.IsValid(currentStage)) 
+                    {
+                        currentStage.TeleportPlayerToStartPoint();
+                    }
                 }
-                if (bgm != null)
+                if (Utilities.IsValid(bgm))
                 {
                     bgm.PlayInGameBgm();
                 }
             }
             else
             {
-                if (initialSpawnPoint != null)
+                if (Utilities.IsValid(initialSpawnPoint))
                 {
                     player.TeleportTo(initialSpawnPoint.position, initialSpawnPoint.rotation);
                 }
-                if (bgm != null)
+                if (Utilities.IsValid(bgm))
+                {
+                    bgm.PlayPreGameBgm();
+                }
+            }
+        }
+        private void UpdateBgmBySuccessStack(){
+            if(successStack >= 0){
+                if (Utilities.IsValid(bgm))
+                {
+                    bgm.PlayInGameBgm();
+                }
+            }
+            else{
+                if (Utilities.IsValid(bgm))
                 {
                     bgm.PlayPreGameBgm();
                 }
@@ -186,31 +201,46 @@ namespace ArthurProduct.AnomalyDetection
         }
         private void UpdateProgressObjects()
         {
-            if (progressObjects == null || progressObjects.Length != maxSuccessStack) return;
+            if (!Utilities.IsValid(stages) || currentStageIndex < 0 || currentStageIndex >= stages.Length) return;
 
-            for (byte i = 0; i < progressObjects.Length; i++)
+            Stage currentStage = stages[currentStageIndex];
+            if (Utilities.IsValid(currentStage))
             {
-                if (progressObjects[i] != null)
-                {
-                    progressObjects[i].SetActive(i < successStack);
-                }
+                currentStage.UpdateProgressObjects((byte)successStack);
             }
         }
         private void UpdateStage()
         {
-            foreach (GameObject stage in anomalyStages)
+
+            foreach (Stage stage in stages)
             {
-                stage.SetActive(false);
+                if (!Utilities.IsValid(stage)) continue;
+                stage.transform.gameObject.SetActive(false);
+            }
+            
+            if (!Utilities.IsValid(stages))
+            {
+                Debug.LogError("stages is invalid");
+                return;
             }
 
-            if (anomalyStageIndex == -1)
-            {
-                baseStage.SetActive(true);
+            if(currentStageIndex < 0){
+                Debug.Log("currentStageIndex is less than 0: " + currentStageIndex);
+                return;
             }
-            else
+
+            Stage currentStage = stages[currentStageIndex];
+
+            if (Utilities.IsValid(initialSpawnPoint) && Utilities.IsValid(currentStage))
             {
-                baseStage.SetActive(false);
-                anomalyStages[anomalyStageIndex].SetActive(true);
+                initialSpawnPoint.position = currentStage.startPoint.position;
+                initialSpawnPoint.rotation = currentStage.startPoint.rotation;
+            }
+
+            if (Utilities.IsValid(currentStage))
+            {
+                currentStage.transform.gameObject.SetActive(true);
+                currentStage.UpdateStage(anomalyStageIndex);
             }
         }
 
@@ -256,10 +286,20 @@ namespace ArthurProduct.AnomalyDetection
             bool isValidAnomaly = anomalyStageIndex != -1 && hasAnomaly;
             bool isCorrect = isValidNormal || isValidAnomaly;
 
+            if(currentStageIndex < 0){
+                Debug.LogError("currentStageIndex is less than 0: " + currentStageIndex);
+                return;
+            }
+            Stage currentStage = stages[currentStageIndex];
+            if(!Utilities.IsValid(currentStage)){
+                Debug.LogError("currentStage is invalid");
+                return;
+            }
+
             if (isCorrect)
             {
                 successStack++;
-                if (successStack < maxSuccessStack && successStack >= 0)
+                if (successStack < currentStage.maxSuccessStack && successStack >= 0)
                 {
                     SendCustomNetworkEvent(NetworkEventTarget.All, nameof(PlayCorrectSound));
                 }
@@ -273,44 +313,64 @@ namespace ArthurProduct.AnomalyDetection
             RequestSerializationForSuccessStack();
         }
 
+        private bool CheckAnomalyProbability()
+        {
+            if(currentStageIndex < 0){
+                Debug.LogError("currentStageIndex is less than 0: " + currentStageIndex);
+                return false;
+            }
+            Stage currentStage = stages[currentStageIndex];
+            if(!Utilities.IsValid(currentStage)){
+                Debug.LogError("currentStage is invalid");
+                return false;
+            }
+            return Random.Range(0, 100) < currentStage.anomalyProbability;
+        }
+
         private void UpdateAnomalyStageIndex()
         {
-            bool hasAnomaly = utils.CheckAnomalyProbability();
+            bool hasAnomaly = CheckAnomalyProbability();
             if (hasAnomaly)
             {
-                byte previousIndex = anomalyStageIndex == -1 ? (byte)255 : (byte)anomalyStageIndex;
-                anomalyStageIndex = (sbyte)utils.GetRandomStageIndex((byte)anomalyStages.Length, previousIndex);
+                if(currentStageIndex < 0){
+                    Debug.LogError("currentStageIndex is less than 0: " + currentStageIndex);
+                    return;
+                }
+                Stage currentStage = stages[currentStageIndex];
+                byte anomalyCount = currentStage.GetAnomalyStageCount();
+                anomalyStageIndex = (sbyte)Random.Range(0, anomalyCount);
             }
             else
             {
                 anomalyStageIndex = -1;
             }
+            RequestSerializationForSuccessStack();
         }
 
         public void PlayStartSound()
         {
-            if (soundEffect != null)
+            if (Utilities.IsValid(soundEffect))
             {
                 soundEffect.PlayStartSound();
             }
         }
         public void PlayCorrectSound()
         {
-            if (soundEffect != null)
+            if (Utilities.IsValid(soundEffect))
             {
                 soundEffect.PlayCorrectSound();
             }
         }
         public void PlayWrongSound()
         {
-            if (soundEffect != null)
+            if (Utilities.IsValid(soundEffect))
             {
                 soundEffect.PlayWrongSound();
             }
         }
         public void PlayClearSound()
         {
-            if (soundEffect != null)
+            if (Utilities.IsValid(soundEffect))
             {
                 soundEffect.PlayClearSound();
             }
@@ -318,6 +378,7 @@ namespace ArthurProduct.AnomalyDetection
 
         public void BanPlayer()
         {
+            if (!isBanEnabled) return;
             isBanned = true;
         }
 

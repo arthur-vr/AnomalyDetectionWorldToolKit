@@ -31,42 +31,40 @@ namespace ArthurProduct.AnomalyDetection
 
         private void Start()
         {
-            if (audioSource == null)
+            if (!Utilities.IsValid(audioSource))
             {
                 audioSource = GetComponent<AudioSource>();
             }
         }
 
+        private void PlaySound(AudioClip sound)
+        {
+            if (!Utilities.IsValid(sound) || !Utilities.IsValid(audioSource)) return;
+            if(audioSource.isPlaying){
+                Debug.LogWarning("AudioSource is already playing");
+                return;
+            }
+            audioSource.PlayOneShot(sound);
+        }
+
         public void PlayStartSound()
         {
-            if (startSound != null && audioSource != null)
-            {
-                audioSource.PlayOneShot(startSound);
-            }
+            PlaySound(startSound);
         }
 
         public void PlayClearSound()
         {
-            if (clearSound != null && audioSource != null)
-            {
-                audioSource.PlayOneShot(clearSound);
-            }
+            PlaySound(clearSound);
         }
 
         public void PlayCorrectSound()
         {
-            if (correctSound != null && audioSource != null)
-            {
-                audioSource.PlayOneShot(correctSound);
-            }
+            PlaySound(correctSound);
         }
 
         public void PlayWrongSound()
         {
-            if (wrongSound != null && audioSource != null)
-            {
-                audioSource.PlayOneShot(wrongSound);
-            }
+            PlaySound(wrongSound);
         }
     }
 }

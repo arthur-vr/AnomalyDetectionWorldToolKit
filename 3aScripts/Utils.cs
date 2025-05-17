@@ -26,12 +26,6 @@ namespace ArthurProduct.AnomalyDetection
             }
         }
 
-        public bool CheckAnomalyProbability()
-        {
-            if (gameManager == null) return false;
-            return Random.Range(0, 100) < gameManager.anomalyProbability;
-        }
-
         public byte GetRandomStageIndex(byte maxIndex, byte previousIndex)
         {
             byte randomIndex;

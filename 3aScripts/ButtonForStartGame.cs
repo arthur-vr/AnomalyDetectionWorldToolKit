@@ -11,7 +11,19 @@ namespace ArthurProduct.AnomalyDetection
         [SerializeField]
         private GameManager gameManager;
 
+        [SerializeField]
+        [Tooltip("Stage index to start from (0-based)")]
+        private byte startStageIndex;
+
         private const byte COOLDOWN_TIME = 1;
+
+        private void Start()
+        {
+            if (!Utilities.IsValid(gameManager))
+            {
+                Debug.LogError("GameManager is not assigned");
+            }
+        }
 
         public override void Interact()
         {
@@ -22,9 +34,9 @@ namespace ArthurProduct.AnomalyDetection
             float currentTime = Time.time;
             if (currentTime - gameManager.lastPressTime >= COOLDOWN_TIME)
             {
-                if (gameManager != null)
+                if (Utilities.IsValid(gameManager))
                 {
-                    gameManager.StartGame();
+                    gameManager.StartGame(startStageIndex);
                 }
                 gameManager.lastPressTime = currentTime;
             }
